@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>Live HTML Preview</title>
+<style>
+:root{
+  --bg:transparent;
+  --text:#7b7b7b;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+}
+html,body{
+  padding:0;
+  margin: 0;
+  height:100%;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font);
+  font-size:15px;
+  display:flex;
+  flex-direction:column;
+}
+main{
+  flex:1;
+  overflow:auto;
+  padding:0;
+  margin: 0;
+}
+main::-webkit-scrollbar {
+  width: 5px; /* 横向滚动条宽度（如果有横向滚动的话） */
+  height: 5px; /* 纵向滚动条高度（虽然你这里主要是垂直滚动，但设置一下也可以统一样式） */
+}
+#preview{
+  padding:0;
+  margin: 0;
+  width:100%;
+  height:100%;
+  border:none;
+}
+#empty{
+  padding:0;
+  margin: 0;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--text);
+  font-style:italic;
+}
+</style>
+</head>
+<body>
+<main id="container">
+  <div id="empty">无渲染内容</div>
+</main>
+
+<script>
+/* ========== 核心逻辑 ========== */
+const container = document.getElementById('container');
+
+/* 提取最后一个 html 代码块（支持未闭合） */
+function extractLastHtml(md){
+  const closed = /```html\s*\n([\s\S]*?)\n```/g;
+  let m, last;
+  while ((m = closed.exec(md)) !== null) last = m[1];
+  if (last) return last;
+
+  const open = /```html\s*\n([\s\S]*?)(?:```|$)/;
+  m = md.match(open);
+  return m ? m[1] : '';
+}
+
+/* 渲染函数 */
+function renderPreview(list){
+  if (!list || !list.length) return fail();
+  const arr = list.filter(m => m.role === 'assistant');
+  if (!arr.length) return fail();
+  const htmlBlock = extractLastHtml(arr[arr.length - 1].pure_content || '');
+  if (!htmlBlock) return fail();
+
+  // 用 iframe 隔离，防止样式冲突
+  container.innerHTML = '<iframe id="preview" sandbox="allow-scripts"></iframe>';
+  const iframe = document.getElementById('preview');
+  iframe.srcdoc = htmlBlock;
+}
+
+function fail(){
+  container.innerHTML = '<div id="empty">无渲染内容</div>';
+}
+
+/* ========== WebSocket 连接 ========== */
+let ws;
+function init(){
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen = () => ws.send(JSON.stringify({type:'get_messages'}));
+  ws.onclose = () => setTimeout(init, 5000);
+  ws.onmessage = e => {
+    try{
+      const d = JSON.parse(e.data);
+      if (d.type === 'messages_update' || d.type === 'broadcast_messages') renderPreview(d.data.messages);
+    }catch{}
+  };
+}
+init();
+</script>
+</body>
+</html>
