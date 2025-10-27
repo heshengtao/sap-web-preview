@@ -1,5 +1,5 @@
 {
-  "name": "Web Preview",
+  "name": "sap-web-preview",
   "version": "1.0.0",
   "description": "This is a web preview extension for the Super Agent Party",
   "author": "heshengtao",
@@ -7,5 +7,6 @@
   "repository": "https://github.com/heshengtao/sap-web-preview",
   "category": "Utility"
 }
+
 
 
