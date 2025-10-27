@@ -27,8 +27,8 @@ main{
   margin: 0;
 }
 main::-webkit-scrollbar {
-  width: 5px; /* 横向滚动条宽度（如果有横向滚动的话） */
-  height: 5px; /* 纵向滚动条高度（虽然你这里主要是垂直滚动，但设置一下也可以统一样式） */
+  width: 5px;
+  height: 5px;
 }
 #preview{
   padding:0;
@@ -47,6 +47,17 @@ main::-webkit-scrollbar {
   color:var(--text);
   font-style:italic;
 }
+.status{
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 1000;
+}
 </style>
 </head>
 <body>
@@ -57,51 +68,239 @@ main::-webkit-scrollbar {
 <script>
 /* ========== 核心逻辑 ========== */
 const container = document.getElementById('container');
+let currentHtml = '';
+let renderTimer = null;
 
-/* 提取最后一个 html 代码块（支持未闭合） */
-function extractLastHtml(md){
-  const closed = /```html\s*\n([\s\S]*?)\n```/g;
-  let m, last;
-  while ((m = closed.exec(md)) !== null) last = m[1];
-  if (last) return last;
-
-  const open = /```html\s*\n([\s\S]*?)(?:```|$)/;
-  m = md.match(open);
-  return m ? m[1] : '';
+/* 提取HTML内容 - 重新设计的逻辑 */
+function extractHtml(md) {
+  console.log('正在分析内容:', md.substring(0, 200) + '...');
+  
+  // 1. 首先查找所有的```html标记
+  const htmlBlockStart = md.lastIndexOf('```html');
+  if (htmlBlockStart === -1) {
+    console.log('未找到```html标记');
+    return { html: '', isComplete: false };
+  }
+  
+  // 2. 从最后一个```html开始提取内容
+  let htmlContent = md.substring(htmlBlockStart);
+  console.log('找到HTML块:', htmlContent.substring(0, 100) + '...');
+  
+  // 3. 移除开头的```html标记和可能的换行
+  htmlContent = htmlContent.replace(/^```html\s*\n?/, '');
+  
+  // 4. 检查是否有结束的```标记
+  const endMarkIndex = htmlContent.indexOf('```');
+  let isComplete = false;
+  
+  if (endMarkIndex !== -1) {
+    // 找到结束标记，截取到结束标记之前
+    htmlContent = htmlContent.substring(0, endMarkIndex);
+    isComplete = true;
+    console.log('HTML块已完整');
+  } else {
+    console.log('HTML块未完整，使用当前内容');
+  }
+  
+  // 5. 清理内容
+  htmlContent = htmlContent.trim();
+  
+  console.log('提取的HTML长度:', htmlContent.length);
+  console.log('是否完整:', isComplete);
+  
+  return { 
+    html: htmlContent, 
+    isComplete: isComplete 
+  };
 }
 
-/* 渲染函数 */
-function renderPreview(list){
-  if (!list || !list.length) return fail();
-  const arr = list.filter(m => m.role === 'assistant');
-  if (!arr.length) return fail();
-  const htmlBlock = extractLastHtml(arr[arr.length - 1].pure_content || '');
-  if (!htmlBlock) return fail();
+/* 智能HTML补全 */
+function completeHtml(html, isComplete) {
+  if (!html.trim()) return html;
+  
+  let completed = html.trim();
+  
+  // 如果HTML很短，可能还在输入中，先尝试简单渲染
+  if (completed.length < 20 && !isComplete) {
+    // 如果只有很少内容，包装在基本结构中
+    if (!completed.includes('<html') && !completed.includes('<body')) {
+      completed = `<body style="font-family: Arial, sans-serif; padding: 20px;">${completed}</body>`;
+    }
+    return completed;
+  }
+  
+  // 检查是否需要添加基本HTML结构
+  const hasHtmlTag = completed.includes('<html');
+  const hasBodyTag = completed.includes('<body');
+  const hasHeadTag = completed.includes('<head');
+  
+  if (!hasHtmlTag && (hasHeadTag || hasBodyTag || completed.includes('<!DOCTYPE'))) {
+    // 需要html标签包装
+    completed = `<html>\n${completed}\n</html>`;
+  } else if (!hasBodyTag && !hasHeadTag && !hasHtmlTag) {
+    // 简单内容，添加body包装
+    completed = `<body style="font-family: Arial, sans-serif; padding: 20px; margin: 0;">\n${completed}\n</body>`;
+  }
+  
+  // 如果内容不完整，尝试修复一些常见问题
+  if (!isComplete) {
+    // 自动闭合一些可能未闭合的标签
+    const tagsToClose = ['div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li'];
+    
+    tagsToClose.forEach(tag => {
+      const openRegex = new RegExp(`<${tag}[^>]*>`, 'gi');
+      const closeRegex = new RegExp(`</${tag}>`, 'gi');
+      
+      const openMatches = completed.match(openRegex) || [];
+      const closeMatches = completed.match(closeRegex) || [];
+      
+      const unclosedCount = openMatches.length - closeMatches.length;
+      if (unclosedCount > 0) {
+        // 添加缺失的闭合标签
+        for (let i = 0; i < unclosedCount; i++) {
+          completed += `</${tag}>`;
+        }
+      }
+    });
+  }
+  
+  return completed;
+}
 
-  // 用 iframe 隔离，防止样式冲突
-  container.innerHTML = '<iframe id="preview" sandbox="allow-scripts"></iframe>';
+/* 防抖渲染函数 */
+function debouncedRender(htmlData) {
+  clearTimeout(renderTimer);
+  
+  // 根据内容长度和完整性调整延迟
+  let delay;
+  if (htmlData.isComplete) {
+    delay = 50; // 完整内容快速渲染
+  } else if (htmlData.html.length > 100) {
+    delay = 200; // 较长内容适中延迟
+  } else {
+    delay = 400; // 短内容较长延迟，避免过于频繁
+  }
+  
+  renderTimer = setTimeout(() => {
+    actualRender(htmlData);
+  }, delay);
+}
+
+/* 实际渲染函数 */
+function actualRender(htmlData) {
+  if (!htmlData.html.trim()) {
+    console.log('HTML内容为空，显示空状态');
+    return fail();
+  }
+  
+  const completedHtml = completeHtml(htmlData.html, htmlData.isComplete);
+  
+  // 避免重复渲染相同内容
+  if (completedHtml === currentHtml) {
+    console.log('HTML内容未变化，跳过渲染');
+    return;
+  }
+  
+  console.log('开始渲染HTML，长度:', completedHtml.length);
+  currentHtml = completedHtml;
+  
+  // 创建iframe进行渲染
+  const statusHtml = !htmlData.isComplete ? '<div class="status">实时预览中...</div>' : '';
+  container.innerHTML = `<iframe id="preview" sandbox="allow-scripts allow-same-origin"></iframe>${statusHtml}`;
+  
   const iframe = document.getElementById('preview');
-  iframe.srcdoc = htmlBlock;
+  
+  // 渲染HTML
+  try {
+    iframe.srcdoc = completedHtml;
+    console.log('HTML渲染成功');
+  } catch (error) {
+    console.error('HTML渲染失败:', error);
+    fail();
+  }
 }
 
-function fail(){
-  container.innerHTML = '<div id="empty">无渲染内容</div>';
+/* 渲染预览 */
+function renderPreview(list) {
+  if (!list || !list.length) {
+    console.log('消息列表为空');
+    return fail();
+  }
+  
+  const assistantMessages = list.filter(m => m.role === 'assistant');
+  if (!assistantMessages.length) {
+    console.log('没有助手消息');
+    return fail();
+  }
+  
+  const lastMessage = assistantMessages[assistantMessages.length - 1];
+  const content = lastMessage.pure_content || lastMessage.content || '';
+  
+  console.log('处理消息内容，长度:', content.length);
+  
+  const htmlData = extractHtml(content);
+  
+  if (!htmlData.html.trim()) {
+    console.log('未提取到HTML内容');
+    return fail();
+  }
+  
+  debouncedRender(htmlData);
+}
+
+function fail() {
+  clearTimeout(renderTimer);
+  if (currentHtml !== '') {
+    currentHtml = '';
+    container.innerHTML = '<div id="empty">无渲染内容</div>';
+    console.log('重置为空状态');
+  }
 }
 
 /* ========== WebSocket 连接 ========== */
 let ws;
-function init(){
+let reconnectAttempts = 0;
+const maxReconnectAttempts = 5;
+
+function init() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
-  ws.onopen = () => ws.send(JSON.stringify({type:'get_messages'}));
-  ws.onclose = () => setTimeout(init, 5000);
+  
+  ws.onopen = () => {
+    console.log('WebSocket连接已建立');
+    reconnectAttempts = 0;
+    ws.send(JSON.stringify({type:'get_messages'}));
+  };
+  
+  ws.onclose = () => {
+    console.log('WebSocket连接已关闭');
+    if (reconnectAttempts < maxReconnectAttempts) {
+      reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+      console.log(`${delay}ms后尝试重连 (${reconnectAttempts}/${maxReconnectAttempts})`);
+      setTimeout(init, delay);
+    }
+  };
+  
   ws.onmessage = e => {
-    try{
-      const d = JSON.parse(e.data);
-      if (d.type === 'messages_update' || d.type === 'broadcast_messages') renderPreview(d.data.messages);
-    }catch{}
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === 'messages_update' || data.type === 'broadcast_messages') {
+        console.log('收到消息更新');
+        renderPreview(data.data.messages);
+      }
+    } catch (error) {
+      console.warn('WebSocket消息解析错误:', error);
+    }
+  };
+  
+  ws.onerror = error => {
+    console.warn('WebSocket错误:', error);
   };
 }
+
+// 启动时添加调试信息
+console.log('HTML预览插件已加载');
 init();
 </script>
 </body>
