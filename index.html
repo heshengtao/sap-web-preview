@@ -62,7 +62,7 @@ main::-webkit-scrollbar {
 </head>
 <body>
 <main id="container">
-  <div id="empty">无渲染内容</div>
+  <div id="empty">No rendering content</div>
 </main>
 
 <script>
@@ -262,6 +262,9 @@ let ws;
 let reconnectAttempts = 0;
 const maxReconnectAttempts = 5;
 
+// 定义要发送的系统提示词
+const EXTENSION_SYSTEM_PROMPT = "你是一位经验丰富的网页开发者，精通 HTML/JS/CSS/TailwindCSS，请使用这些技术来创建我需要的页面。请以下面的格式提供代码，所有代码都需要放在一个 HTML 文件中：\n```html\n这里是 HTML 代码\n```";
+
 function init() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
@@ -269,6 +272,17 @@ function init() {
   ws.onopen = () => {
     console.log('WebSocket连接已建立');
     reconnectAttempts = 0;
+    
+    // [新增功能] 连接成功后，立即发送系统提示词
+    console.log('发送系统提示词配置...');
+    ws.send(JSON.stringify({
+      type: 'set_system_prompt',
+      data: {
+        text: EXTENSION_SYSTEM_PROMPT
+      }
+    }));
+
+    // 获取历史消息
     ws.send(JSON.stringify({type:'get_messages'}));
   };
   
