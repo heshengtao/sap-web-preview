@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8"/>
 <title>Pro IDE Previewer</title>
-<link href="prism-tomorrow.min.css" rel="stylesheet" />
-<link href="prism-line-numbers.min.css" rel="stylesheet" />
+<!-- 引入 Highlight.js GitHub Dark 主题 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <style>
 :root {
-    --vs-bg: #1e1e1e;
-    --vs-header: #252526;
-    --vs-tab-active: #1e1e1e;
-    --vs-tab-inactive: #2d2d2d;
-    --vs-border: #3c3c3c;
-    --vs-text: #cccccc;
-    --vs-accent: #007acc;
-    --vs-hover: #37373d;
+    --vs-bg: #0d1117;
+    --vs-header: #161b22;
+    --vs-tab-active: #0d1117;
+    --vs-tab-inactive: #010409;
+    --vs-border: #30363d;
+    --vs-text: #c9d1d9;
+    --vs-accent: #2f81f7;
+    --vs-hover: #21262d;
     --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New', monospace;
 }
 
@@ -23,7 +23,7 @@
 body {
     background-color: var(--vs-bg);
     color: var(--vs-text);
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     height: 100vh;
     display: flex;
     flex-direction: column; 
@@ -33,11 +33,11 @@ body {
 /* 顶部 Tab 栏 */
 header {
     background: var(--vs-header);
-    height: 35px;
+    height: 38px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-right: 10px;
+    padding-right: 12px;
     border-bottom: 1px solid var(--vs-border);
     flex-shrink: 0;
     z-index: 10;
@@ -45,107 +45,98 @@ header {
 
 .tabs { display: flex; height: 100%; align-items: flex-end; }
 .tab {
-    padding: 0 16px;
-    height: 35px;
-    display: flex;
-    align-items: center;
-    font-size: 13px;
+    padding: 0 20px;
+    height: 100%;
+    display: flex; align-items: center;
+    font-size: 12px;
     background: var(--vs-tab-inactive);
-    color: #969696;
+    color: #8b949e;
     cursor: pointer;
     border-right: 1px solid var(--vs-border);
-    border-top: 1px solid transparent;
+    border-top: 2px solid transparent;
     user-select: none;
-    transition: all 0.2s ease;
-    gap: 6px;
+    transition: 0.2s;
+    text-transform: uppercase;
 }
-.tab svg { width: 14px; height: 14px; fill: currentColor; }
 .tab.active {
     background: var(--vs-tab-active);
-    color: #ffffff;
-    border-top: 1px solid var(--vs-accent);
+    color: #f0f6fc;
+    border-top: 2px solid var(--vs-accent);
 }
 
-.actions { display: flex; align-items: center; gap: 4px; }
+.actions { display: flex; align-items: center; gap: 8px; }
 .btn {
-    background: transparent; border: none; color: #ccc;
-    padding: 4px; border-radius: 4px; cursor: pointer;
+    background: transparent; border: none; color: #8b949e;
+    padding: 5px; border-radius: 6px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    transition: all 0.2s; width: 26px; height: 26px;
 }
-.btn:hover { background: var(--vs-hover); color: #fff; }
-.btn svg { width: 16px; height: 16px; fill: currentColor; }
+.btn:hover { background: var(--vs-hover); color: #58a6ff; }
+.btn svg { width: 18px; height: 18px; fill: currentColor; }
 
-/* 刷新动画 */
 @keyframes spin { 100% { transform: rotate(360deg); } }
-.btn.spinning svg { animation: spin 1s linear infinite; fill: var(--vs-accent); }
+.btn.spinning svg { animation: spin 1s linear infinite; color: var(--vs-accent); }
 
 /* 主区域容器 */
-main { 
-    flex: 1; 
-    position: relative; 
-    overflow: hidden; 
-    background: var(--vs-bg);
-}
+main { flex: 1; position: relative; overflow: hidden; }
 
 .panel { 
     position: absolute; inset: 0; 
     display: flex; flex-direction: column; 
-    opacity: 0; pointer-events: none; 
-    transition: opacity 0.2s ease; 
+    visibility: hidden; opacity: 0; 
+    transition: opacity 0.2s; 
 }
-.panel.active { 
-    opacity: 1; pointer-events: auto; z-index: 2; 
-}
+.panel.active { visibility: visible; opacity: 1; z-index: 2; }
 
-/* 代码区 - 彻底解决横向滚动条问题 */
+/* ================= 照抄恢复：横向滚动条核心布局 ================= */
 #view-code {
     flex: 1; width: 100%; height: 100%;
-    overflow: hidden; 
+    overflow: auto !important; /* 滚动条权限交给此层，确保横向滚动条吸底 */
+    background: var(--vs-bg);
 }
 
-pre[class*="language-"] {
-    margin: 0 !important;
-    padding: 16px 0 !important;
-    background: transparent !important;
-    font-size: 14px !important;
-    font-family: var(--font-mono) !important;
-    line-height: 1.6;
-    height: 100%;
-    width: 100%;
+/* 保持代码原始格式的关键 pre 标签 */
+pre#code-pre {
+    margin: 0;
+    padding: 20px;
+    width: fit-content; /* 允许宽度根据长行代码伸展 */
+    min-width: 100%;
     box-sizing: border-box;
-    overflow: auto !important; 
 }
 
-::-webkit-scrollbar { width: 12px; height: 12px; }
-::-webkit-scrollbar-corner { background: var(--vs-bg); }
-::-webkit-scrollbar-thumb {
-    background: rgba(121, 121, 121, 0.4); border: 2px solid transparent;
-    background-clip: padding-box; border-radius: 6px;
-}
-::-webkit-scrollbar-thumb:hover { background: rgba(121, 121, 121, 0.7); background-clip: padding-box; }
-::-webkit-scrollbar-track { background: transparent; }
-
-/* 预览视图优化 */
-#preview-wrapper {
-    width: 100%; height: 100%; background: #ffffff;
-    display: flex; position: relative;
-}
-#preview-frame {
-    width: 100%; height: 100%; border: none; flex: 1;
-    background: transparent;
+code#code-box {
+    font-family: var(--font-mono) !important;
+    font-size: 14px !important;
+    line-height: 1.6;
+    background: transparent !important;
+    display: block;
+    white-space: pre; /* 绝对保留换行和回车 */
 }
 
-/* 提示与 Toast */
+/* ================= 照抄恢复：VS Code 专业滚动条样式 ================= */
+#view-code::-webkit-scrollbar { width: 12px; height: 12px; }
+#view-code::-webkit-scrollbar-corner { background: transparent; }
+#view-code::-webkit-scrollbar-thumb {
+    background: rgba(121, 121, 121, 0.4); 
+    border-radius: 10px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+#view-code::-webkit-scrollbar-thumb:hover { background: rgba(121, 121, 121, 0.7); background-clip: content-box; }
+#view-code::-webkit-scrollbar-track { background: transparent; }
+
+/* 预览视图 */
+#preview-wrapper { width: 100%; height: 100%; background: #fff; }
+#preview-frame { width: 100%; height: 100%; border: none; }
+
 .empty-msg {
-    height: 100%; width: 100%; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; background: var(--vs-bg);
-    color: #555; font-size: 14px; position: absolute; top:0; left:0; z-index: 5;
+    height: 100%; width: 100%; display: flex; align-items: center; justify-content: center;
+    color: #484f58; font-size: 14px; position: absolute; background: var(--vs-bg);
 }
+
 #toast {
-    position: fixed; bottom: 20px; right: 20px; background: var(--vs-accent);
-    color: #fff; padding: 6px 16px; font-size: 13px; border-radius: 4px;
-    display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 1000;
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: #21262d; color: #f0f6fc; padding: 8px 16px; font-size: 13px;
+    border-radius: 6px; border: 1px solid var(--vs-border); display: none; z-index: 1000;
 }
 </style>
 </head>
@@ -153,85 +144,57 @@ pre[class*="language-"] {
 
 <header>
     <div class="tabs">
-        <div class="tab active" id="tab-preview">
-            <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-            <span id="txt-preview">Preview</span>
-        </div>
-        <div class="tab" id="tab-code">
-            <svg viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
-            <span id="txt-code">Code</span>
-        </div>
+        <div class="tab active" id="tab-preview">Preview</div>
+        <div class="tab" id="tab-code">Code</div>
     </div>
     <div class="actions">
-        <button class="btn" id="btn-refresh" title="Refresh Preview" style="display:none;">
+        <button class="btn" id="btn-refresh" title="Refresh" style="display:none;">
             <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
         </button>
-        <button class="btn" id="lang-switch" title="Toggle Language">
-            <svg viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>
-        </button>
-        <button class="btn" id="btn-copy" title="Copy Code">
+        <button class="btn" id="lang-switch">ZH / EN</button>
+        <button class="btn" id="btn-copy">
             <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
         </button>
     </div>
 </header>
 
 <main>
-    <div id="toast">Copied successfully</div>
-    
+    <div id="toast">Copied</div>
     <div id="panel-preview" class="panel active">
-        <div id="preview-wrapper">
-            <iframe id="preview-frame"></iframe>
-        </div>
+        <div id="preview-wrapper"><iframe id="preview-frame"></iframe></div>
         <div id="empty-view" class="empty-msg">Waiting for code streaming...</div>
     </div>
-    
     <div id="panel-code" class="panel">
         <div id="view-code">
-            <pre class="line-numbers"><code id="code-box" class="language-markup"></code></pre>
+            <pre id="code-pre"><code id="code-box" class="hljs"></code></pre>
         </div>
     </div>
 </main>
 
-<script src="prism.min.js"></script>
-<script src="prism-markup.min.js"></script>
-<script src="prism-javascript.min.js"></script>
-<script src="prism-css.min.js"></script>
-<script src="prism-line-numbers.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
 <script>
-/**
- * 核心逻辑层
- */
 const CONFIG = {
-    renderDelay: 300, // 流式刷新频率
-    isPreviewable: (lang) => ['html', 'markup', 'svg', 'xml'].includes(lang)
+    renderDelay: 300,
+    isPreviewable: (l) => ['html', 'xml', 'svg', 'markup', 'htm'].includes(l)
 };
 
 const i18n = {
-    zh: { preview: "实时预览", code: "代码", waiting: "等待代码流式生成...", copied: "代码已复制" },
-    en: { preview: "Preview", code: "Code", waiting: "Waiting for code streaming...", copied: "Copied successfully" }
+    zh: { preview: "实时预览", waiting: "正在接收代码流...", copied: "已复制" },
+    en: { preview: "Preview", waiting: "Waiting for code streaming...", copied: "Copied" }
 };
 
 let currentLang = 'zh';
-const state = { 
-    raw: '',        
-    lastCode: '',   
-    currentCode: '', 
-    currentType: 'html',
-    view: 'preview',
-    isFirstRender: true
-};
-
+const state = { raw: '', lastCode: '', currentCode: '', currentType: 'html', view: 'preview', isFirstRender: true };
 let renderTimer = null;
 
 const dom = {
     tabPreview: document.getElementById('tab-preview'),
     tabCode: document.getElementById('tab-code'),
-    txtPreview: document.getElementById('txt-preview'),
-    txtCode: document.getElementById('txt-code'),
     panelPreview: document.getElementById('panel-preview'),
     panelCode: document.getElementById('panel-code'),
     iframe: document.getElementById('preview-frame'),
+    viewCode: document.getElementById('view-code'),
     codeBox: document.getElementById('code-box'),
     emptyView: document.getElementById('empty-view'),
     btnRefresh: document.getElementById('btn-refresh'),
@@ -240,66 +203,65 @@ const dom = {
 };
 
 function updateLangUI() {
-    const t = i18n[currentLang];
-    dom.txtPreview.innerText = t.preview;
-    dom.txtCode.innerText = t.code;
-    if (!state.currentCode) dom.emptyView.innerText = t.waiting;
+    dom.tabPreview.innerText = i18n[currentLang].preview;
+    if (!state.currentCode) dom.emptyView.innerText = i18n[currentLang].waiting;
 }
 
-// 提取代码区块
 function extractCode(text) {
     const regex = /```([a-zA-Z0-9]*)\n([\s\S]*?)(?:```|$)/g;
     let match, last = null;
     while ((match = regex.exec(text)) !== null) {
-        last = { type: match[1].toLowerCase() || 'html', content: match[2] };
+        last = { type: match[1].toLowerCase() || 'txt', content: match[2] };
     }
     return last;
 }
 
-// 触发智能渲染
 function smartRender(force = false) {
-    if (!state.currentCode) return;
-    if (!force && state.currentCode === state.lastCode) return;
+    if (!state.currentCode || (!force && state.currentCode === state.lastCode)) return;
 
-    // 控制刷新按钮可见性
+    dom.tabCode.innerText = state.currentType || 'CODE';
     dom.btnRefresh.style.display = CONFIG.isPreviewable(state.currentType) ? 'flex' : 'none';
 
-    // 更新代码视图
-    dom.codeBox.className = 'language-' + (state.currentType === 'html' ? 'markup' : state.currentType);
+    // --- 粘性滚动判定 ---
+    const container = dom.viewCode;
+    const isAtBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 50;
+
+    // 更新内容：保持 pre + code 结构
+    dom.codeBox.className = `hljs language-${state.currentType}`;
     dom.codeBox.textContent = state.currentCode;
-    Prism.highlightElement(dom.codeBox);
+    hljs.highlightElement(dom.codeBox);
 
-    // 防抖处理预览更新
+    // --- 粘性滚动执行 ---
+    if (isAtBottom) {
+        requestAnimationFrame(() => {
+            container.scrollTop = container.scrollHeight;
+        });
+    }
+
+    // 预览更新
     clearTimeout(renderTimer);
-    dom.btnRefresh.classList.add('spinning'); // 旋转动画作为渲染指示器
-
+    dom.btnRefresh.classList.add('spinning');
     renderTimer = setTimeout(() => {
         executeSeamlessPreview();
         dom.btnRefresh.classList.remove('spinning');
     }, CONFIG.renderDelay);
 }
 
-// DOM 热更新：无白屏、无闪烁
 function executeSeamlessPreview() {
     if (!CONFIG.isPreviewable(state.currentType)) {
         dom.iframe.style.display = 'none';
         dom.emptyView.style.display = 'flex';
-        if (state.view === 'preview') switchView('code');
         return;
     }
-
     dom.emptyView.style.display = 'none';
     dom.iframe.style.display = 'block';
 
     let html = state.currentCode;
-    // 注入基础防护和现代默认样式
     if (!html.toLowerCase().includes('<html')) {
-        html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:'Segoe UI',system-ui,sans-serif;padding:20px;line-height:1.6;margin:0;}</style></head><body>${html}</body></html>`;
+        html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:sans-serif;padding:20px;line-height:1.6;margin:0;background:#fff;}</style></head><body>${html}</body></html>`;
     }
 
     const doc = dom.iframe.contentWindow?.document;
-    
-    // 首次渲染或主动强刷时，使用 srcdoc 彻底重建文档
     if (state.isFirstRender || !doc || !doc.body) {
         dom.iframe.srcdoc = html;
         state.isFirstRender = false;
@@ -308,29 +270,19 @@ function executeSeamlessPreview() {
     }
 
     try {
-        // 使用 DOMParser 解析虚拟 DOM 树，实现内存热更新
         const parser = new DOMParser();
         const newDoc = parser.parseFromString(html, 'text/html');
-
-        if (doc.head.innerHTML !== newDoc.head.innerHTML) {
-            doc.head.innerHTML = newDoc.head.innerHTML;
-        }
-
+        if (doc.head.innerHTML !== newDoc.head.innerHTML) doc.head.innerHTML = newDoc.head.innerHTML;
         const scrollY = dom.iframe.contentWindow.scrollY;
-        const scrollX = dom.iframe.contentWindow.scrollX;
-        
         doc.body.innerHTML = newDoc.body.innerHTML;
-
-        // 重新执行 Script 标签
-        const scripts = doc.body.querySelectorAll('script');
-        scripts.forEach(oldScript => {
+        
+        doc.body.querySelectorAll('script').forEach(oldScript => {
             const newScript = doc.createElement('script');
             Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
             newScript.appendChild(doc.createTextNode(oldScript.innerHTML));
             oldScript.parentNode.replaceChild(newScript, oldScript);
         });
-
-        dom.iframe.contentWindow.scrollTo(scrollX, scrollY);
+        dom.iframe.contentWindow.scrollTo(0, scrollY);
         state.lastCode = state.currentCode;
     } catch (e) {
         dom.iframe.srcdoc = html;
@@ -338,7 +290,6 @@ function executeSeamlessPreview() {
     }
 }
 
-// 视图切换
 function switchView(v) {
     state.view = v;
     dom.tabPreview.classList.toggle('active', v === 'preview');
@@ -347,28 +298,18 @@ function switchView(v) {
     dom.panelCode.classList.toggle('active', v === 'code');
 }
 
-// 绑定事件
 dom.tabPreview.onclick = () => switchView('preview');
 dom.tabCode.onclick = () => switchView('code');
 dom.btnLang.onclick = () => { currentLang = currentLang === 'zh' ? 'en' : 'zh'; updateLangUI(); };
-
-// 主动刷新：触发完全重载(清空内部状态)
-dom.btnRefresh.onclick = () => {
-    if (!CONFIG.isPreviewable(state.currentType)) return;
-    state.isFirstRender = true; 
-    smartRender(true); 
-};
-
+dom.btnRefresh.onclick = () => { state.isFirstRender = true; smartRender(true); };
 document.getElementById('btn-copy').onclick = () => {
     navigator.clipboard.writeText(state.currentCode).then(() => {
         dom.toast.innerText = i18n[currentLang].copied;
         dom.toast.style.display = 'block';
-        dom.toast.style.animation = 'pulse 0.3s ease';
         setTimeout(() => dom.toast.style.display = 'none', 2000);
     });
 };
 
-// WebSocket 监听流式生成
 function initWS() {
     const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
     ws.onopen = () => ws.send(JSON.stringify({type:'get_messages'}));
@@ -378,11 +319,9 @@ function initWS() {
             const msgs = data.data.messages;
             const last = msgs.filter(m => m.role === 'assistant').pop();
             if (!last) return;
-            
             const content = last.pure_content || last.content;
             if (content === state.raw) return;
             state.raw = content;
-            
             const result = extractCode(content);
             if (result) {
                 state.currentCode = result.content;
@@ -394,7 +333,6 @@ function initWS() {
     ws.onclose = () => setTimeout(initWS, 3000);
 }
 
-// 初始化
 updateLangUI();
 initWS();
 </script>
